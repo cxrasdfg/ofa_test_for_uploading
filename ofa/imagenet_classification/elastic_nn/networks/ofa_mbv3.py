@@ -4,6 +4,8 @@
 
 import copy
 import random
+from fvcore.nn import FlopCountAnalysis
+import torch as th
 
 from ofa.imagenet_classification.elastic_nn.modules.dynamic_layers import DynamicMBConvLayer
 from ofa.utils.layers import ConvLayer, IdentityLayer, LinearLayer, MBConvLayer, ResidualBlock
@@ -221,6 +223,17 @@ class OFAMobileNetV3(MobileNetV3):
 		self.__dict__['_depth_include_list'] = None
 		self.__dict__['_expand_include_list'] = None
 		self.__dict__['_ks_include_list'] = None
+	
+	def compute_flops(self, ks, e, d, input_size=224):
+		did = next(self.parameters()).device
+		input_img = th.randn(1,3,input_size,input_size).to(did)
+		self.set_active_subnet(ks, e, d)
+		subnet_ = self.get_active_subnet()
+		flops=FlopCountAnalysis(subnet_, input_img).total()/1e9
+		
+		del subnet_
+		# th.cuda.empty_cache()
+		return flops
 
 	def sample_active_subnet(self):
 		ks_candidates = self.ks_list if self.__dict__.get('_ks_include_list', None) is None \

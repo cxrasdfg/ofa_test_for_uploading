@@ -1,0 +1,43 @@
+name: ofa-horovod
+# this installation packs of nccl will be removed, not worked for me. pls to install the nccl2 from the official nvidia website.
+# run to build: HOROVOD_NCCL_INCLUDE=$CONDA_PREFIX HOROVOD_NCCL_LIB=/usr/lib/x86_64-linux-gnu HOROVOD_GPU_OPERATIONS=NCCL pip install --no-cache-dir horovod
+# run to build: HOROVOD_CUDA_HOME=$CONDA_PREFIX HOROVOD_NCCL_LIB=/usr/lib/x86_64-linux-gnu HOROVOD_GPU_OPERATIONS=NCCL pip install --no-cache-dir horovod
+# note that the verions of the cudatoolkit, nvcc and nccl must be identical
+channels:
+  - pytorch
+  - conda-forge
+  - defaults
+  - nvidia
+
+dependencies:
+  - ccache
+  - cmake
+  - cudnn=8.2
+  - cudatoolkit=11.3
+  - cudatoolkit-dev=11.3
+  # - cuda-nvcc=11.3
+  - gxx_linux-64=9.4
+  - git
+  - h5py
+  # - jupyterlab
+  # - jupyterlab-git
+  # - jupyterlab-lsp
+  # - jupyterlab-nvdashboard
+  - matplotlib
+  - mpi4py # installs cuda-aware openmpi
+  # - nccl # follow the steps from the offcial site of nvidia, do not use the lib from the conda!!!
+  - numpy
+  - openmpi
+  - pip
+  - python=3.9
+  # - python-language-server
+  - pytorch-gpu=1.9.0
+  - torchvision=0.10.0
+  - torchaudio=0.9.0
+  # - tensorboard
+  # - torchtext
+  # - sentencepiece
+  # - wandb
+
+  - pip:
+    - -r horvod-pip.txt

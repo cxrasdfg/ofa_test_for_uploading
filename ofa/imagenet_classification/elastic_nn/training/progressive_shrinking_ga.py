@@ -11,7 +11,7 @@ from tqdm import tqdm
 
 from ofa.utils import AverageMeter, cross_entropy_loss_with_soft_target
 from ofa.utils import DistributedMetric, list_mean, subset_mean, val2list, MyRandomResizedCrop
-from ofa.imagenet_classification.run_manager import DistributedRunManager
+from ofa.imagenet_classification.run_manager.distributed_run_manager_ga import DistributedRunManagerGA
 
 __all__ = [
 	'validate', 'train_one_epoch', 'train', 'load_models',
@@ -78,7 +78,7 @@ def validate(run_manager, epoch=0, is_test=False, image_size_list=None,
 
 def train_one_epoch(run_manager, args, epoch, warmup_epochs=0, warmup_lr=0):
 	dynamic_net = run_manager.network
-	distributed = isinstance(run_manager, DistributedRunManager)
+	distributed = isinstance(run_manager, DistributedRunManagerGA)
 
 	# switch to train mode
 	dynamic_net.train()
@@ -123,12 +123,24 @@ def train_one_epoch(run_manager, args, epoch, warmup_epochs=0, warmup_lr=0):
 
 			loss_of_subnets = []
 			# compute output
+			UPDATE_SAMPLE_ITERATIONS=50
+			if i % UPDATE_SAMPLE_ITERATIONS == 0:
+				run_manager.nas_solver.step()
+			pop = run_manager.nas_solver.get_cur_pop()
+			
 			subnet_str = ''
-			for _ in range(args.dynamic_batch_size):
+			# for _ in range(args.dynamic_batch_size): # replace the random sampling loop
+			
+			for _, c in enumerate(pop) :
+				subnet_settings = run_manager.nas_solver.gene_encoder.decode_arch(c.X, instant_act_subnet=True)
+				# loss_type='ce' # note for removal after debug
+				# subnet_seed = '123' # note for removal after debug
+				# loss_of_subnets.append(torch.tensor(1.2))
+				 
 				# set random seed before sampling
 				subnet_seed = int('%d%.3d%.3d' % (epoch * nBatch + i, _, 0))
-				random.seed(subnet_seed)
-				subnet_settings = dynamic_net.sample_active_subnet()
+				# random.seed(subnet_seed)
+				# subnet_settings = dynamic_net.sample_active_subnet()
 				subnet_str += '%d: ' % _ + ','.join(['%s_%s' % (
 					key, '%.1f' % subset_mean(val, 0) if isinstance(val, list) else val
 				) for key, val in subnet_settings.items()]) + ' || '
@@ -150,7 +162,8 @@ def train_one_epoch(run_manager, args, epoch, warmup_epochs=0, warmup_lr=0):
 				run_manager.update_metric(metric_dict, output, target)
 
 				loss.backward()
-			run_manager.optimizer.step()
+				if (_+1) % run_manager.backward_steps == 0:
+					run_manager.optimizer.step()
 
 			losses.update(list_mean(loss_of_subnets), images.size(0))
 
@@ -170,14 +183,14 @@ def train_one_epoch(run_manager, args, epoch, warmup_epochs=0, warmup_lr=0):
 
 
 def train(run_manager, args, validate_func=None):
-	distributed = isinstance(run_manager, DistributedRunManager)
+	distributed = isinstance(run_manager, DistributedRunManagerGA)
 	if validate_func is None:
 		validate_func = validate
 
 	for epoch in range(run_manager.start_epoch, run_manager.run_config.n_epochs + args.warmup_epochs):
 		train_loss, (train_top1, train_top5) = train_one_epoch(
 			run_manager, args, epoch, args.warmup_epochs, args.warmup_lr)
-
+		 
 		if (epoch + 1) % args.validation_frequency == 0:
 			val_loss, val_acc, val_acc5, _val_log = validate_func(run_manager, epoch=epoch, is_test=False)
 			# best_acc
@@ -217,15 +230,17 @@ def train_elastic_depth(train_func, run_manager, args, validate_func_dict):
 	current_stage = n_stages - 1
 
 	# load pretrained models
-	if run_manager.start_epoch == 0 and not args.resume:
-		validate_func_dict['depth_list'] = sorted(dynamic_net.depth_list)
+	DO_NOT_LOAD = True
+	if not DO_NOT_LOAD:
+		if run_manager.start_epoch == 0 and not args.resume:
+			validate_func_dict['depth_list'] = sorted(dynamic_net.depth_list)
 
-		load_models(run_manager, dynamic_net, model_path=args.ofa_checkpoint_path)
-		# validate after loading weights
-		run_manager.write_log('%.3f\t%.3f\t%.3f\t%s' %
-		                      validate(run_manager, is_test=True, **validate_func_dict), 'valid')
-	else:
-		assert args.resume
+			load_models(run_manager, dynamic_net, model_path=args.ofa_checkpoint_path)
+			# validate after loading weights
+			run_manager.write_log('%.3f\t%.3f\t%.3f\t%s' %
+								validate(run_manager, is_test=True, **validate_func_dict), 'valid')
+		else:
+			assert args.resume
 
 	run_manager.write_log(
 		'-' * 30 + 'Supporting Elastic Depth: %s -> %s' %

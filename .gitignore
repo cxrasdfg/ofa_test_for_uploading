@@ -8,7 +8,8 @@ cache/
 __pycache__/
 *.py[cod]
 *$py.class
-
+exp
+.torch
 # C extensions
 *.so
 

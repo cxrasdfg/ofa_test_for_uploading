@@ -12,11 +12,13 @@ import multiprocessing as python_multiprocessing
 import torch
 import torch.multiprocessing as multiprocessing
 from torch._utils import ExceptionWrapper
-from torch._six import queue, string_classes
+# from torch._six import queue, string_classes
+from torch._six import string_classes
 from torch.utils.data.dataset import IterableDataset
 from torch.utils.data import Sampler, SequentialSampler, RandomSampler, BatchSampler
 from torch.utils.data import _utils
-
+from torch.multiprocessing import queue
+import queue as py_queue
 from .my_data_worker import worker_loop
 
 __all__ = ['MyDataLoader']
@@ -724,7 +726,7 @@ class _MultiProcessingDataLoaderIter(_BaseDataLoaderIter):
 
 		if self._pin_memory:
 			self._pin_memory_thread_done_event = threading.Event()
-			self._data_queue = queue.Queue()
+			self._data_queue = queue.Queue(ctx=multiprocessing)
 			pin_memory_thread = threading.Thread(
 				target=_utils.pin_memory._pin_memory_loop,
 				args=(self._worker_result_queue, self._data_queue,
@@ -773,7 +775,7 @@ class _MultiProcessingDataLoaderIter(_BaseDataLoaderIter):
 			if len(failed_workers) > 0:
 				pids_str = ', '.join(str(w.pid) for w in failed_workers)
 				raise RuntimeError('DataLoader worker (pid(s) {}) exited unexpectedly'.format(pids_str))
-			if isinstance(e, queue.Empty):
+			if isinstance(e, py_queue.Empty):
 				return (False, None)
 			raise
 

@@ -11,19 +11,21 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.backends.cudnn as cudnn
 from tqdm import tqdm
+import horovod.torch as hvd
 
 from ofa.utils import cross_entropy_with_label_smoothing, cross_entropy_loss_with_soft_target, write_log, init_models
 from ofa.utils import DistributedMetric, list_mean, get_net_info, accuracy, AverageMeter, mix_labels, mix_images
 from ofa.utils import MyRandomResizedCrop
-import horovod.torch as hvd
+from ofa.ga.ga import NASSolver
 
 __all__ = ['DistributedRunManager']
 
 
-class DistributedRunManager:
+class DistributedRunManagerGA:
 
-	def __init__(self, path, net, run_config, hvd_compression, backward_steps=1, is_root=False, init=True):
-
+	def __init__(self, args, path, net, run_config, hvd_compression, backward_steps=1, is_root=False, init=True):
+		
+		self.args = args
 		self.path = path
 		self.net = net
 		self.run_config = run_config
@@ -82,6 +84,8 @@ class DistributedRunManager:
 			self.optimizer, named_parameters=self.net.named_parameters(), compression=hvd_compression,
 			backward_passes_per_step=backward_steps,
 		)
+		self.backward_steps = backward_steps
+		self.nas_solver = NASSolver(args, self)
 
 	""" save path and log path """
 

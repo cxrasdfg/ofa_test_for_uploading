@@ -6,6 +6,7 @@ import argparse
 import numpy as np
 import os
 import random
+import datetime
 
 import horovod.torch as hvd
 import torch
@@ -14,9 +15,9 @@ from ofa.imagenet_classification.elastic_nn.modules.dynamic_op import DynamicSep
 from ofa.imagenet_classification.elastic_nn.networks import OFAMobileNetV3
 from ofa.imagenet_classification.run_manager import DistributedImageNetRunConfig
 from ofa.imagenet_classification.networks import MobileNetV3Large
-from ofa.imagenet_classification.run_manager.distributed_run_manager import DistributedRunManager
+from ofa.imagenet_classification.run_manager.distributed_run_manager_ga import DistributedRunManagerGA
 from ofa.utils import download_url, MyRandomResizedCrop
-from ofa.imagenet_classification.elastic_nn.training.progressive_shrinking import load_models
+from ofa.imagenet_classification.elastic_nn.training.progressive_shrinking_ga import load_models, validate, train, train_elastic_depth, train_elastic_expand
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--task', type=str, default='depth', choices=[
@@ -76,12 +77,14 @@ elif args.task == 'expand':
         args.depth_list = '2,3,4'
 else:
     raise NotImplementedError
+args.path+='-GA-'+datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
 args.manual_seed = 0
 
 args.lr_schedule_type = 'cosine'
 
 args.base_batch_size = 64
-args.valid_size = 10000
+# args.valid_size = 10000
+args.valid_size = 1000
 
 args.opt_type = 'sgd'
 args.momentum = 0.9
@@ -114,6 +117,10 @@ args.independent_distributed_sampling = False
 # args.kd_ratio = 1.0
 args.kd_ratio = 0.0
 args.kd_type = 'ce'
+
+# for genetic algorithm
+args.pop_size = 20
+args.n_offsprings = 20
 
 
 if __name__ == '__main__':
@@ -189,8 +196,11 @@ if __name__ == '__main__':
     """ Distributed RunManager """
     # Horovod: (optional) compression algorithm.
     compression = hvd.Compression.fp16 if args.fp16_allreduce else hvd.Compression.none
-    distributed_run_manager = DistributedRunManager(
-        args.path, net, run_config, compression, backward_steps=args.dynamic_batch_size, is_root=(hvd.rank() == 0)
+    # distributed_run_manager = DistributedRunManagerGA(
+    #     args, args.path, net, run_config, compression, backward_steps=args.dynamic_batch_size, is_root=(hvd.rank() == 0)
+    # )
+    distributed_run_manager = DistributedRunManagerGA(
+        args, args.path, net, run_config, compression, backward_steps=4, is_root=(hvd.rank() == 0)
     )
     distributed_run_manager.save_config()
     # hvd broadcast
@@ -201,7 +211,7 @@ if __name__ == '__main__':
         load_models(distributed_run_manager, args.teacher_model, model_path=args.teacher_path)
 
     # training
-    from ofa.imagenet_classification.elastic_nn.training.progressive_shrinking import validate, train
+    # from ofa.imagenet_classification.elastic_nn.training.progressive_shrinking import validate, train
 
     validate_func_dict = {'image_size_list': {224} if isinstance(args.image_size, int) else sorted({160, 224}),
                           'ks_list': sorted({min(args.ks_list), max(args.ks_list)}),
@@ -222,7 +232,7 @@ if __name__ == '__main__':
         train(distributed_run_manager, args,
               lambda _run_manager, epoch, is_test: validate(_run_manager, epoch, is_test, **validate_func_dict))
     elif args.task == 'depth':
-        from ofa.imagenet_classification.elastic_nn.training.progressive_shrinking import train_elastic_depth
+        # from ofa.imagenet_classification.elastic_nn.training.progressive_shrinking import train_elastic_depth
         if args.phase == 1:
             args.ofa_checkpoint_path = download_url(
                 'https://hanlab.mit.edu/files/OnceForAll/ofa_checkpoints/ofa_D4_E6_K357',
@@ -233,9 +243,10 @@ if __name__ == '__main__':
                 'https://hanlab.mit.edu/files/OnceForAll/ofa_checkpoints/ofa_D34_E6_K357',
                 model_dir='.torch/ofa_checkpoints/%d' % hvd.rank()
             )
+
         train_elastic_depth(train, distributed_run_manager, args, validate_func_dict)
     elif args.task == 'expand':
-        from ofa.imagenet_classification.elastic_nn.training.progressive_shrinking import train_elastic_expand
+        # from ofa.imagenet_classification.elastic_nn.training.progressive_shrinking import train_elastic_expand
         if args.phase == 1:
             args.ofa_checkpoint_path = download_url(
                 'https://hanlab.mit.edu/files/OnceForAll/ofa_checkpoints/ofa_D234_E6_K357',

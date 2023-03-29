@@ -1,0 +1,7 @@
+einops==0.3.2
+prettytable==2.1.0
+sacrebleu
+datasets==1.8.0
+huggingface-hub==0.0.12
+transformers==4.8.2
+horovod[pytorch]==0.22.1

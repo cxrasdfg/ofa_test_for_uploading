@@ -8,7 +8,10 @@ import torch
 import random
 import os
 from collections import namedtuple
-from torch._six import queue
+# from torch._six import queue
+import multiprocessing
+import queue as py_que
+from torch.multiprocessing import queue
 from torch._utils import ExceptionWrapper
 from torch.utils.data._utils import signal_handling, MP_STATUS_CHECK_INTERVAL, IS_WINDOWS
 
@@ -163,7 +166,7 @@ def worker_loop(dataset_kind, dataset, index_queue, data_queue, done_event,
 		while watchdog.is_alive():
 			try:
 				r = index_queue.get(timeout=MP_STATUS_CHECK_INTERVAL)
-			except queue.Empty:
+			except py_que.Empty:
 				continue
 			if r is None:
 				# Received the final signal
