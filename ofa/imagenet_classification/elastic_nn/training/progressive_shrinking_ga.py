@@ -209,13 +209,22 @@ def train(run_manager, args, validate_func=None):
 					'best_acc': run_manager.best_acc,
 					'optimizer': run_manager.optimizer.state_dict(),
 					'state_dict': run_manager.network.state_dict(),
+					'pop': run_manager.nas_solver.get_cur_pop(),
+					'gen_num':run_manager.nas_solver.get_gen_num()
 				}, is_best=is_best)
 
 
 def load_models(run_manager, dynamic_net, model_path=None):
 	# specify init path
-	init = torch.load(model_path, map_location='cpu')['state_dict']
+	save_params = torch.load(model_path, map_location='cpu')
+	init = save_params['state_dict']
 	dynamic_net.load_state_dict(init)
+	
+	pop = save_params['pop']
+	gen_nnum = save_params['gen_num']
+	run_manager.nas_solver.set_pop(pop)
+	run_manager.nas_solver.set_gen_num(gen_nnum)
+	
 	run_manager.write_log('Loaded init from %s' % model_path, 'valid')
 
 

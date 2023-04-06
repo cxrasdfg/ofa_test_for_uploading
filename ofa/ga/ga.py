@@ -85,8 +85,15 @@ class EvoOFA(GeneticAlgorithm):
             self.cur_pop = self.pop 
             self._each_iteration(self)
     
+    def get_generations(self):
+        return self.n_gen
+    
+    def set_generations(self, gen_num):
+        self.n_gen = gen_num
 
-
+    def set_pop(self, pop):
+        self.pop = pop
+    
 
 # ---------------------------------------------------------------------------------------------------------
 # Survival Selection
@@ -294,6 +301,16 @@ class NASSolver():
     def get_cur_pop(self):
         return self.method.get_cur_pop()
 
+    def set_pop(self, pop):
+        return self.method.set_pop(pop)
+    
+    def get_gen_num(self):
+        return self.method.get_generations()
+
+    def set_gen_num(self, gen_num):
+        return self.method.set_generations(gen_num)
+
+    
     @DeprecationWarning
     def solve(self, **kwargs):
         if 'seed' not in kwargs:
