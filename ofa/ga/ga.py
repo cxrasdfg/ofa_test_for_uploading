@@ -16,6 +16,8 @@ from pymoo.util.non_dominated_sorting import NonDominatedSorting
 from pymoo.util.randomized_argsort import randomized_argsort
 from pymoo.optimize import minimize
 from pymop.problem import Problem
+from pymoo.model.individual import Individual
+
 
 from ofa.ga.gene import MobileNetV3Gene
 
@@ -84,15 +86,29 @@ class EvoOFA(GeneticAlgorithm):
             self.pop = self._next(self.pop)
             self.cur_pop = self.pop 
             self._each_iteration(self)
-    
+        
     def get_generations(self):
         return self.n_gen
     
     def set_generations(self, gen_num):
         self.n_gen = gen_num
 
-    def set_pop(self, pop):
+    def set_pop(self, pop):   
+        self.history = []
+        self.evaluator = Evaluator()
+        # self.problem = problem
+        # self.termination = termination
+        self.pf = None
+
+        self.disp = False
+        self.callback = None
+        self.save_history = False
+
         self.pop = pop
+        self.pop.individual=Individual()
+
+        self.cur_pop = self.pop.copy()
+
     
 
 # ---------------------------------------------------------------------------------------------------------
