@@ -243,7 +243,7 @@ if __name__ == '__main__':
                 'https://hanlab.mit.edu/files/OnceForAll/ofa_checkpoints/ofa_D34_E6_K357',
                 model_dir='.torch/ofa_checkpoints/%d' % hvd.rank()
             )
-
+        args.ofa_checkpoint_path = 'need-for-path'
         train_elastic_depth(train, distributed_run_manager, args, validate_func_dict)
     elif args.task == 'expand':
         # from ofa.imagenet_classification.elastic_nn.training.progressive_shrinking import train_elastic_expand

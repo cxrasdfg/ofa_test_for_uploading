@@ -220,6 +220,9 @@ def load_models(run_manager, dynamic_net, model_path=None):
 	init = save_params['state_dict']
 	dynamic_net.load_state_dict(init)
 	
+	run_manager.start_epoch = save_params['epoch']
+	run_manager.optimizer.load_state_dict(save_params['optimizer'])
+	
 	pop = save_params['pop']
 	gen_nnum = save_params['gen_num']
 	run_manager.nas_solver.set_pop(pop)
@@ -239,7 +242,7 @@ def train_elastic_depth(train_func, run_manager, args, validate_func_dict):
 	current_stage = n_stages - 1
 
 	# load pretrained models
-	DO_NOT_LOAD = True
+	DO_NOT_LOAD = False
 	if not DO_NOT_LOAD:
 		if run_manager.start_epoch == 0 and not args.resume:
 			validate_func_dict['depth_list'] = sorted(dynamic_net.depth_list)
@@ -249,7 +252,10 @@ def train_elastic_depth(train_func, run_manager, args, validate_func_dict):
 			run_manager.write_log('%.3f\t%.3f\t%.3f\t%s' %
 								validate(run_manager, is_test=True, **validate_func_dict), 'valid')
 		else:
-			assert args.resume
+			# assert args.resume
+			load_models(run_manager, dynamic_net, model_path=args.ofa_checkpoint_path)
+			# dynamic_net.re_organize_middle_weights(expand_ratio_stage=current_stage)
+			run_manager.write_log('load_from_them_model%s'%(args.ofa_checkpoint_path))
 
 	run_manager.write_log(
 		'-' * 30 + 'Supporting Elastic Depth: %s -> %s' %
@@ -288,7 +294,7 @@ def train_elastic_expand(train_func, run_manager, args, validate_func_dict):
 		                      validate(run_manager, is_test=True, **validate_func_dict), 'valid')
 	else:
 		assert args.resume
-
+		
 	run_manager.write_log(
 		'-' * 30 + 'Supporting Elastic Expand Ratio: %s -> %s' %
 		(expand_stage_list[:current_stage + 1], expand_stage_list[:current_stage + 2]) + '-' * 30, 'valid'
