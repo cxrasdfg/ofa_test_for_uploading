@@ -217,15 +217,18 @@ def train_elastic_depth(train_func, run_manager, args, validate_func_dict):
 	current_stage = n_stages - 1
 
 	# load pretrained models
-	if run_manager.start_epoch == 0 and not args.resume:
-		validate_func_dict['depth_list'] = sorted(dynamic_net.depth_list)
+	LOAD_PRETRAINED_MODEL = False
+	run_manager.write_log('train from scratch', 'train')
+	if LOAD_PRETRAINED_MODEL:
+		if run_manager.start_epoch == 0 and not args.resume:
+			validate_func_dict['depth_list'] = sorted(dynamic_net.depth_list)
 
-		load_models(run_manager, dynamic_net, model_path=args.ofa_checkpoint_path)
-		# validate after loading weights
-		run_manager.write_log('%.3f\t%.3f\t%.3f\t%s' %
-		                      validate(run_manager, is_test=True, **validate_func_dict), 'valid')
-	else:
-		assert args.resume
+			load_models(run_manager, dynamic_net, model_path=args.ofa_checkpoint_path)
+			# validate after loading weights
+			run_manager.write_log('%.3f\t%.3f\t%.3f\t%s' %
+								validate(run_manager, is_test=True, **validate_func_dict), 'valid')
+		else:
+			assert args.resume
 
 	run_manager.write_log(
 		'-' * 30 + 'Supporting Elastic Depth: %s -> %s' %

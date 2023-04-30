@@ -92,6 +92,8 @@ def train_one_epoch(run_manager, args, epoch, warmup_epochs=0, warmup_lr=0):
 	losses = DistributedMetric('train_loss') if distributed else AverageMeter()
 	metric_dict = run_manager.get_metric_dict()
 
+	test_flag = True
+	first_one_indi = None
 	with tqdm(total=nBatch,
 	          desc='Train Epoch #{}'.format(epoch + 1),
 	          disable=distributed and not run_manager.is_root) as t:
@@ -123,14 +125,24 @@ def train_one_epoch(run_manager, args, epoch, warmup_epochs=0, warmup_lr=0):
 
 			loss_of_subnets = []
 			# compute output
-			UPDATE_SAMPLE_ITERATIONS=50
-			if i % UPDATE_SAMPLE_ITERATIONS == 0:
-				run_manager.nas_solver.step()
-			pop = run_manager.nas_solver.get_cur_pop()
+			if test_flag:
+				if first_one_indi is None:
+					run_manager.nas_solver.step()
+					pop = run_manager.nas_solver.get_cur_pop()
+					pop = pop[:1]
+					first_one_indi = True
+				else:
+					pass 
+			else:
+				UPDATE_SAMPLE_ITERATIONS=50
+				if i % UPDATE_SAMPLE_ITERATIONS == 0:
+					run_manager.nas_solver.step()
+				pop = run_manager.nas_solver.get_cur_pop()
 			
 			subnet_str = ''
 			# for _ in range(args.dynamic_batch_size): # replace the random sampling loop
 			
+
 			for _, c in enumerate(pop) :
 				subnet_settings = run_manager.nas_solver.gene_encoder.decode_arch(c.X, instant_act_subnet=True)
 				# loss_type='ce' # note for removal after debug
@@ -230,6 +242,31 @@ def load_models(run_manager, dynamic_net, model_path=None):
 	
 	run_manager.write_log('Loaded init from %s' % model_path, 'valid')
 
+def eval_ga_mode(run_manager, args):
+	pop = run_manager.nas_solver.get_cur_pop()
+	dynamic_net = run_manager.net
+	image_size_list = val2list(run_manager.run_config.data_provider.image_size, 1)
+	image_size = image_size_list[-1]
+	losses_of_subnets = []
+	top1_of_subnets = []
+	top5_of_subnets = []
+	flops_list = []
+	for indi in pop:
+		run_manager.write_log('-' * 30 + ' Validate %s ' % str(indi.X) + '-' * 30, 'train', should_print=True)
+		run_manager.run_config.data_provider.assign_active_img_size(image_size)
+		subnet_settings = run_manager.nas_solver.gene_encoder.decode_arch(indi.X, instant_act_subnet=True)
+
+		run_manager.write_log(dynamic_net.module_str, 'train', should_print=True)
+
+		run_manager.reset_running_statistics(dynamic_net)
+		loss, (top1, top5) = run_manager.validate(epoch=0, is_test=True, run_str=str(subnet_settings), net=dynamic_net)
+		losses_of_subnets.append(loss)
+		top1_of_subnets.append(top1)
+		top5_of_subnets.append(top5)
+		flops_list.append(indi.F[1])
+	
+	for loss, top1, top5, flops in zip(losses_of_subnets, top1_of_subnets, top5_of_subnets, flops_list):
+		run_manager.write_log(str(subnet_settings)+ '-'*5 + 'loss:' + str(loss) + '-'*5 + 'top1:'+ str(top1) + '-'*5 + 'top5:' +str(top5) +'-'*5+'flops:'+str(flops)+'-'*5,'valid', should_print=True)
 
 def train_elastic_depth(train_func, run_manager, args, validate_func_dict):
 	dynamic_net = run_manager.net
